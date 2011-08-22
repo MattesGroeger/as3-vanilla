@@ -8,6 +8,6 @@ package org.osflash.vanilla.reflection
 		 * 
 		 * @param targetType	The Class Definition that Vanilla needs a ReflectionMap of.
 		 */
-		function create(targetType : Class) : ReflectionMap;
+		function create(targetType : Class, injectionMap : IInjectionMapSpi) : void;
 	}
 }

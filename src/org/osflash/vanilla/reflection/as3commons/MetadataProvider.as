@@ -1,27 +1,31 @@
-package org.osflash.vanilla.reflection
+package org.osflash.vanilla.reflection.as3commons
 {
-	internal class MetadataProvider
+	import org.as3commons.reflect.Metadata;
+	import org.as3commons.reflect.MetadataArgument;
+	import org.osflash.vanilla.reflection.AnnotationError;
+	
+	public class MetadataProvider
 	{
 		private static const EMPTY : Vector.<MetadataArgument> = new Vector.<MetadataArgument>(0, true);
 		
 		protected const _metadataArgumentsByTagName : Object = {};
 
-		public function MetadataProvider(metadataTags : Vector.<MetadataTag>) 
+		public function MetadataProvider(metadatas : Vector.<Metadata>) 
 		{
-			if (metadataTags) {
-				populateMap(metadataTags);
+			if (metadatas) {
+				populateMap(metadatas);
 			}
 		}
 
-		private function populateMap(tags : Vector.<MetadataTag>) : void
+		private function populateMap(tags : Vector.<Metadata>) : void
 		{
 			const numTags : uint = tags.length;
 			for (var i : uint = 0; i < numTags; i++) {
-				if (_metadataArgumentsByTagName[tags[i].tagName] !== undefined) {
+				if (_metadataArgumentsByTagName[tags[i].name] !== undefined) {
 					throw new AnnotationError("Vanilla does not support annotating mutliple metadata tags on a given field or method.  Found more than on occurance of " + tags[i], AnnotationError.MULTIPLE_ANNOTATIONS);
 				}
 				
-				_metadataArgumentsByTagName[tags[i].tagName] = tags[i].arguments;
+				_metadataArgumentsByTagName[tags[i].name] = tags[i].arguments;
 			}
 		}
 		

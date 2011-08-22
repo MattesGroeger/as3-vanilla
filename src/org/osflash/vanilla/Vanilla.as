@@ -1,23 +1,14 @@
 package org.osflash.vanilla
 {
-	import org.osflash.vanilla.reflection.impl.AS3CommonsReflectionMapFactory;
+	import flash.utils.getQualifiedClassName;
 	import org.as3commons.lang.ClassUtils;
 	import org.as3commons.lang.ObjectUtils;
-	import org.osflash.vanilla.reflection.Field;
 	import org.osflash.vanilla.reflection.IReflectionMapFactory;
-	import org.osflash.vanilla.reflection.MetadataArgument;
-	import org.osflash.vanilla.reflection.Method;
-	import org.osflash.vanilla.reflection.Parameter;
-	import org.osflash.vanilla.reflection.ReflectionMap;
+	import org.osflash.vanilla.reflection.as3commons.AS3CommonsReflectionMapFactory;
 
-	import flash.utils.getQualifiedClassName;
 	
 	public class Vanilla
 	{
-		private static const METADATA_TAG : String = "Marshall";
-		private static const METADATA_FIELD_KEY : String = "field";
-		private static const METADATA_TYPE_KEY : String = "type";
-		
 		private var _reflector : IReflectionMapFactory;
 		
 		public function Vanilla(reflector : IReflectionMapFactory = null) 
@@ -45,7 +36,7 @@ package org.osflash.vanilla
 			// Construct an InjectionMap which tells us how to inject fields from the source object into 
 			// the Target class.
 			const injectionMap : InjectionMap = new InjectionMap();
-			addReflectedRules(injectionMap, targetType, _reflector.create(targetType));
+			_reflector.create(targetType, injectionMap);
 			
 			// Create a new isntance of the targetType; and then inject the values from the source object into it
 			const target : * = instantiate(targetType, fetchConstructorArgs(source, injectionMap.getConstructorFields()));
@@ -55,7 +46,7 @@ package org.osflash.vanilla
 			return target;
 		}
 
-		private function fetchConstructorArgs(source : Object, constructorFields : Array) : Array
+		private function fetchConstructorArgs(source : Object, constructorFields : Vector.<InjectionDetail>) : Array
 		{
 			const result : Array = [];
 			for (var i : uint = 0; i < constructorFields.length; i++) {
@@ -66,7 +57,7 @@ package org.osflash.vanilla
 
 		private function injectFields(source : Object, target : *, injectionMap : InjectionMap) : void
 		{
-			const fieldNames : Array = injectionMap.getFieldNames();
+			const fieldNames : Vector.<String> = injectionMap.getFieldNames();
 			for each (var fieldName : String in fieldNames) {
 				target[fieldName] = extractValue(source, injectionMap.getField(fieldName));
 			}
@@ -74,7 +65,7 @@ package org.osflash.vanilla
 		
 		private function injectMethods(source : Object, target : *, injectionMap : InjectionMap) : void
 		{
-			const methodNames : Array = injectionMap.getMethodsNames();
+			const methodNames : Vector.<String> = injectionMap.getMethodsNames();
 			for each (var methodName : String in methodNames)
 			{
 				const values : Array = [];
@@ -143,96 +134,6 @@ package org.osflash.vanilla
 		{
 			return ClassUtils.newInstance(targetType, ctorArgs);
 		}
-
-		private function addReflectedRules(injectionMap : InjectionMap, targetType : Class, reflectionMap : ReflectionMap) : void
-		{
-			addReflectedConstructorRules(injectionMap, reflectionMap);
-			addReflectedFieldRules(injectionMap, reflectionMap.fields);
-			addReflectedSetterRules(injectionMap, reflectionMap.methods);
-		}
-
-		private function addReflectedConstructorRules(injectionMap : InjectionMap, reflectionMap : ReflectionMap) : void
-		{
-			const metadataArgs : Vector.<MetadataArgument> = reflectionMap.ctor.getMetadataArguments(METADATA_TAG);
-			const numArgs : uint = metadataArgs.length;
-			
-			for (var i : uint = 0; i < numArgs; i++) {
-				if (metadataArgs[i].key == METADATA_FIELD_KEY) {
-					const param : Parameter = reflectionMap.ctor.parameters[i];
-					const arrayTypeHint : Class = extractArrayTypeHint(param);		// No typeHint metadata on ctors, yet.
-					injectionMap.addConstructorField(new InjectionDetail(metadataArgs[i].value, param.type, true, arrayTypeHint));
-				}
-			}
-		}
-
-		private function addReflectedFieldRules(injectionMap : InjectionMap, fields : Vector.<Field>) : void
-		{
-			for each (var field : Field in fields) {
-				const fieldMetadataEntries : Vector.<MetadataArgument> = field.getMetadataArguments(METADATA_TAG);
-				const arrayTypeHint : Class = extractArrayTypeHint(field, fieldMetadataEntries);
-				const sourceFieldName : String = extractFieldName(field, fieldMetadataEntries);
-				
-				injectionMap.addField(field.name, new InjectionDetail(sourceFieldName, field.type, false, arrayTypeHint));
-			}
-		}
-
-		private function addReflectedSetterRules(injectionMap : InjectionMap, methods : Vector.<Method>) : void
-		{
-			for each (var method : Method in methods) {
-
-				const metadataArgs : Vector.<MetadataArgument> = method.getMetadataArguments(Vanilla.METADATA_TAG);
-				if (metadataArgs == null) {
-					continue;
-				}
-				
-				const numArgs : uint = metadataArgs.length;
-				for (var i : uint = 0; i < numArgs; i++) {
-					if (metadataArgs[i].key == METADATA_FIELD_KEY) {
-						const param : Parameter = method.parameters[i];
-						// FIXME If a method has multiple type hints we will always use the first!
-						const arrayTypeHint : Class = extractArrayTypeHint(param, metadataArgs);
-						injectionMap.addMethod(method.name, new InjectionDetail(metadataArgs[i].value, param.type, false, arrayTypeHint));
-					}
-				}
-			}
-		}		
-
-		private function extractFieldName(field : Field, metadataArgs : Vector.<MetadataArgument>) : String
-		{
-			// See if a taget fieldName has been defined in the Metadata.
-			if (metadataArgs) {
-				const numArgs : uint = metadataArgs.length;
-				for (var i : uint = 0; i < numArgs; i++) {
-					if (metadataArgs[i].key == METADATA_FIELD_KEY) {
-						return metadataArgs[i].value;
-					}
-				}
-			}
-			
-			// Assume it's a 1 to 1 mapping.
-			return field.name;
-		}
-
-		private function extractArrayTypeHint(parameter : Parameter, metadataArgs : Vector.<MetadataArgument> = null) : Class
-		{
-			// Vectors carry their own type hint.
-			if (parameter.vectorType) {
-				return parameter.vectorType;
-			}
-			
-			// Otherwise we will look for some "type" metadata, if it was defined.
-			else if (metadataArgs) {
-				const numArgs : uint = metadataArgs.length;
-				for (var i : uint = 0; i < numArgs; i++) {
-					if (metadataArgs[i].key == METADATA_TYPE_KEY) {
-						return ClassUtils.forName(metadataArgs[i].value);
-					}
-				}
-			}
-			
-			// No type hint.
-			return null;
-		}		
 
 		private function isVector(obj : *) : Boolean 
 		{

@@ -1,6 +1,6 @@
 package org.osflash.vanilla
 {
-	internal class InjectionDetail
+	public class InjectionDetail
 	{
 		private var _fieldName : String;
 		private var _type : Class;
